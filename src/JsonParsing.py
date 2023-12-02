@@ -56,12 +56,14 @@ class SuricataJsonParser ():
         
     def get_domain_names(self):
         domain_names = []
+        pattern_windows_domain_name = re.compile(r"\b(?:[a-z0-9-]+\.)+(?:microsoft\.com|windows\.com|windowsupdate\.com|msftncsi\.com)\b")
 
         for obj in self.data:
             if obj.get("event_type") == "dns" and obj.get("dns", {}).get("type") == "query":
                 domain_name = obj["dns"]["rrname"]
                 if domain_name not in domain_names:
-                    domain_names.append(domain_name)
+                    if pattern_windows_domain_name.match(domain_name):
+                        domain_names.append(domain_name)
 
         if domain_names:
             domain_names = sorted(domain_names)
@@ -170,30 +172,49 @@ class SuricataJsonParser ():
     # get informations about malwares detected: name, type, family, etc.
     def get_detected_malwares(self):
         impacted_ip = []
+        signatures = []
         for i in range(len(self.data)):
             if self.data[i]["event_type"] == "alert":
                 obj = self.data[i]
                 if self.is_private_ip_address(obj["src_ip"], self.private_ip_pattern_A_class, self.private_ip_pattern_B_class, self.private_ip_pattern_C_class) and obj["src_ip"] not in impacted_ip:
                     impacted_ip.append(obj["src_ip"])
-                if obj.get("alert", {}).get("metadata", {}).get("former_category") :
-                    if 'MALWARE' in obj["alert"]["metadata"]["former_category"]:
-                        self.output_file.write("* {}\n\n".format(obj))
-                        if obj.get("alert", {}).get("metadata", {}).get("malware_family") :
-                            self.output_file.write("   * family: {}\n".format(obj["alert"]["metadata"]["malware_family"][0]))
-                        if obj.get("alert", {}).get("metadata", {}).get("signature_severity") :
-                            self.output_file.write("   * severity: {}\n".format(obj["alert"]["metadata"]["signature_severity"][0]))
-                        if obj.get("http", {}).get("hostname") :
-                            self.output_file.write("* IOC: {} hostname: {}\n\n".format(obj["src_ip"], obj["http"]["hostname"]))
-        self.output_file.write("Internal IP addresses impacted by malware: {}\n\n|\n\n".format(impacted_ip))
-        
-
-
                 
-   # get hostname and ip for each malware alert                 
-    def get_indicators_of_compromise(self):
-        self.output_file.write("todo\n\n")
-        indicators = []
+                if obj.get("alert", {}).get("signature") and obj['alert']['signature'] not in signatures:
+                        signatures.append(obj['alert']['signature'])
+                        if obj["alert"]["signature"].split(" ")[1] == "MALWARE":
+                            #self.output_file.write("* {}\n\n".format(obj))
+                            if obj.get("alert", {}).get("metadata", {}).get("malware_family") :
+                                self.output_file.write(f"* signature: {obj['alert']['signature']}\n\n")
+                                self.output_file.write(f"   * family: {obj['alert']['metadata']['malware_family'][0]}\n")
+                            if obj.get("alert", {}).get("metadata", {}).get("signature_severity") :
+                                self.output_file.write("   * severity: {}\n".format(obj["alert"]["metadata"]["signature_severity"][0]))
+                            if obj.get("http", {}).get("hostname") :
+                                self.output_file.write(f"   * (IOC) ip source: {obj['src_ip']} ip destination: {obj['dest_ip']} hostname: {obj['http']['hostname']}\n\n|\n\n")
+                            else:
+                                self.output_file.write(f"   * (IOC) ip source: {obj['src_ip']} ip destination: {obj['dest_ip']}\n\n|\n\n")
+        self.output_file.write("Internal IP addresses impacted by malware: {}\n\n|\n\n".format(impacted_ip))
+    
+    # get all the hashes of files that have been detected as malwares thanks to the correlation between flow_id and tx_id    
+    def get_hashes_of_detected_malwares(self):
+        hashes = []
+        self.output_file.write("Hashes of detected malwares:\n\n")
         for i in range(len(self.data)):
             if self.data[i]["event_type"] == "alert":
                 obj = self.data[i]
+                if obj.get("alert", {}).get("signature") :
+                    if obj["alert"]["signature"].split(" ")[1] == "MALWARE":
+                        if obj.get("tls", {}).get("ja3", {}).get("hash"):
+                            if obj["tls"]["ja3"]["hash"] not in hashes:
+                                    hashes.append(obj["tls"]["ja3"]["hash"])
+                                    
+                                    self.output_file.write(f"* {obj['alert']['signature']}\n")
+                                    self.output_file.write("   * ja3: {}\n".format(obj["tls"]["ja3"]["hash"]))
+                                    self.output_file.write("   * ja3s: {}\n".format(obj["tls"]["ja3s"]["hash"]))
+
+        if len(hashes) == 0:
+            self.output_file.write("No hashes found.\n\n")
+                        
+
+
+                
                 

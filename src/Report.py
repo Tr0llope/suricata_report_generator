@@ -76,10 +76,6 @@ class ReportBuilder ():
         title = "Detected malwares\n"
         self.output_file.write(title+"~"*len(title)+ "\n\n")
         self.parser.get_detected_malwares()
-        self.output_file.write("\n\n|\n\n")
+        self.parser.get_hashes_of_detected_malwares()
+        self.output_file.write("\n\n")
     
-    def set_indicators_of_compromise(self):
-        title = "Indicators of compromise\n"
-        self.output_file.write(title+"~"*len(title)+ "\n\n")
-        self.parser.get_indicators_of_compromise()
-        self.output_file.write("\n\n|\n\n")

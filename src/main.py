@@ -55,7 +55,6 @@ if __name__ == "__main__":
         # Threat detection
         report.set_alerted_signatures()
         report.set_detected_malwares()
-        report.set_indicators_of_compromise()
         
         output_file.close()
 
