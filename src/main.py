@@ -1,7 +1,7 @@
 import sys, json, os
 from Report import ReportBuilder
 
-# Create the report file with the same name as the input file
+# Create the report file with the same name as the input file in the reports directory
 def create_output_file(file_name):
     try:
         extract_file_name = file_name.split("/")[-1].split(".")[0]
@@ -14,6 +14,7 @@ def create_output_file(file_name):
     except Exception as e:
         print("Error: {}".format(e))
 
+# Load the json data from the input file in memory
 def load_json_data(file_name):
     try:
         data = []
@@ -36,14 +37,16 @@ def rst_file_to_pdf(file_name):
     
     
 if __name__ == "__main__":
+    # Check if the input file is specified
     if len(sys.argv) < 2:
         print("Usage: python main.py <file_name> [-options]")
     else:
+        # open the input file and load the json data
         file_name = sys.argv[1]
         output_file = create_output_file(file_name)
         data = load_json_data(file_name)
         
-        
+        # Create the report
         report = ReportBuilder(data, output_file)
         report.introduction(file_name.split("/")[-1])
         report.set_time()
@@ -51,8 +54,6 @@ if __name__ == "__main__":
         report.set_domain_names_info()
         report.set_users_info()
         report.set_tcp_ip_services_info()
-
-        # Threat detection
         report.set_alerted_signatures()
         report.set_detected_malwares()
         
