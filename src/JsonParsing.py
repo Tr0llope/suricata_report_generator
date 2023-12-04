@@ -37,9 +37,12 @@ class SuricataJsonParser ():
         
     def get_domain_names(self):
         domain_names = [] # List of unique domain names
+        domain_controllers = [] # List of unique domain controllers
 
         # Regex pattern to check if a domain name is a windows domain name
         pattern_windows_domain_name = re.compile(r"\b(?:[a-z0-9-]+\.)+(?:microsoft\.com|windows\.com|windowsupdate\.com|msftncsi\.com)\b")
+        # Regex pattern to check if a domain name is a domain controller (begin with _ldap)
+        pattern_domain_controller = re.compile(r"^_ldap\..*")
 
         for obj in self.data:
             if obj.get("event_type") == "dns" and obj.get("dns", {}).get("type") == "query": # Check if the object is a DNS query
@@ -47,6 +50,8 @@ class SuricataJsonParser ():
                 if domain_name not in domain_names:
                     if pattern_windows_domain_name.match(domain_name):
                         domain_names.append(domain_name)
+                    elif pattern_domain_controller.match(domain_name):
+                        domain_controllers.append(domain_name)
 
         # Sort the domain names and print them in two columns
         if domain_names:
@@ -64,6 +69,19 @@ class SuricataJsonParser ():
                 self.output_file.write("\n")
         else:
             self.output_file.write("No domain names found.\n\n")
+        
+        self.output_file.write("="*69 + " " + "="*70 + "\n\n")
+        
+        # Sort the domain controllers and print them in two columns
+        if domain_controllers:
+            self.output_file.write("\n\nHere are the requested domain controllers: \n")
+            domain_controllers = sorted(domain_controllers)
+            count = 0
+            l = 0
+            for domain_controller in domain_controllers:
+                self.output_file.write(f"   * {domain_controller}\n")
+        else:
+            self.output_file.write("No domain controllers found.\n\n")
         
 
     
@@ -88,7 +106,7 @@ class SuricataJsonParser ():
                     user="cifs (Common Internet File System)"
                 self.output_file.write(f"* {user}\n")
         else:
-            self.output_file.write("No users found. \n\n")
+            self.output_file.write("No SMB users found. \n\n")
 
     # Ressources: https://www.it-connect.fr/quelle-version-du-protocole-smb-utilisez-vous/
     # We can guess the OS of the client thanks to the dialect used by SMB.
@@ -143,6 +161,7 @@ class SuricataJsonParser ():
     def get_detected_malwares(self):
         impacted_ip = []
         signatures = []
+        flow_id = []
         for i in range(len(self.data)):
             if self.data[i]["event_type"] == "alert":
                 obj = self.data[i]
@@ -151,7 +170,9 @@ class SuricataJsonParser ():
                 
                 if obj.get("alert", {}).get("signature") and obj['alert']['signature'] not in signatures:
                         signatures.append(obj['alert']['signature'])
+                        
                         if obj["alert"]["signature"].split(" ")[1] == "MALWARE":
+                            flow_id.append(obj["flow_id"])
                             if obj.get("alert", {}).get("metadata", {}).get("malware_family") :
                                 self.output_file.write(f"* signature: {obj['alert']['signature']}\n\n")
                                 self.output_file.write(f"   * family: {obj['alert']['metadata']['malware_family'][0]}\n")
@@ -162,24 +183,28 @@ class SuricataJsonParser ():
                             else:
                                 self.output_file.write(f"   * (IOC) ip source: {obj['src_ip']} ip destination: {obj['dest_ip']}\n\n|\n\n")
         self.output_file.write("Internal IP addresses impacted by malware: {}\n\n|\n\n".format(impacted_ip))
+        return flow_id # contains the flow_id of all the alerts that have been triggered
     
     # get all the hashes of files that have been detected as malwares 
-    def get_hashes_of_detected_malwares(self):
+    def get_hashes_of_detected_malwares(self, flow_id):
         hashes = []
-        self.output_file.write("Hashes of detected malwares:\n\n")
+        self.output_file.write("Hashes of files detected as malwares:")
         for i in range(len(self.data)):
-            if self.data[i]["event_type"] == "alert":
-                obj = self.data[i]
-                if obj.get("alert", {}).get("signature") :
-                    if obj["alert"]["signature"].split(" ")[1] == "MALWARE":
-                        if obj.get("tls", {}).get("ja3", {}).get("hash"):
-                            if obj["tls"]["ja3"]["hash"] not in hashes:
-                                    hashes.append(obj["tls"]["ja3"]["hash"])
-                                    
-                                    self.output_file.write(f"* {obj['alert']['signature']}\n")
-                                    self.output_file.write("   * ja3: {}\n".format(obj["tls"]["ja3"]["hash"]))
-                                    self.output_file.write("   * ja3s: {}\n".format(obj["tls"]["ja3s"]["hash"]))
-                                    self.output_file.write("   * fingerprint: {}\n".format(obj["tls"]["fingerprint"]))
+            obj = self.data[i] 
+            if obj["event_type"] == "fileinfo":
+                if obj["fileinfo"]["sha256"] not in hashes:
+                    hashes.append(obj["fileinfo"]["sha256"])
+                    self.output_file.write("\n\n----\n\n")
+                    self.output_file.write("* file name: {}\n".format(obj["fileinfo"]["filename"]  ))
+                    if obj.get("fileinfo", {}).get("size"): 
+                        self.output_file.write("* size: {}\n".format(obj["fileinfo"]["size"]))
+                    if obj.get("fileinfo", {}).get("sha1"):
+                        self.output_file.write("* sha1: {}\n".format(obj["fileinfo"]["sha1"]))
+                    if obj.get("fileinfo", {}).get("sha256"):
+                        self.output_file.write("* sha256: {}\n".format(obj["fileinfo"]["sha256"]))
+                    
+
+                
 
         if len(hashes) == 0:
             self.output_file.write("No hashes found.\n\n")

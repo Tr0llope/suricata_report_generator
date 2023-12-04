@@ -60,7 +60,7 @@ class ReportBuilder ():
         self.output_file.write("The following domain names were requested:\n\n")
         self.output_file.write("="*69 + " " + "="*70 + "\n")
         self.parser.get_domain_names()
-        self.output_file.write("="*69 + " " + "="*70 + "\n")
+        #self.output_file.write("="*69 + " " + "="*70 + "\n")
         self.output_file.write("\n\n|\n\n")
     
     # print the users
@@ -90,7 +90,7 @@ class ReportBuilder ():
     def set_detected_malwares(self):
         title = "Detected malwares\n"
         self.output_file.write(title+"~"*len(title)+ "\n\n")
-        self.parser.get_detected_malwares()
-        self.parser.get_hashes_of_detected_malwares()
+        flow_id = self.parser.get_detected_malwares()
+        self.parser.get_hashes_of_detected_malwares(flow_id)
         self.output_file.write("\n\n")
     
