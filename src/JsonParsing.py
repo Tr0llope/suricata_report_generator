@@ -42,7 +42,7 @@ class SuricataJsonParser ():
         # Regex pattern to check if a domain name is a windows domain name
         pattern_windows_domain_name = re.compile(r"\b(?:[a-z0-9-]+\.)+(?:microsoft\.com|windows\.com|windowsupdate\.com|msftncsi\.com)\b")
         # Regex pattern to check if a domain name is a domain controller (begin with _ldap)
-        pattern_domain_controller = re.compile(r"^_ldap\..*")
+        pattern_domain_controller = re.compile(r"^_ldap|^_msdcs\.")
 
         for obj in self.data:
             if obj.get("event_type") == "dns" and obj.get("dns", {}).get("type") == "query": # Check if the object is a DNS query
@@ -196,6 +196,8 @@ class SuricataJsonParser ():
                     hashes.append(obj["fileinfo"]["sha256"])
                     self.output_file.write("\n\n----\n\n")
                     self.output_file.write("* file name: {}\n".format(obj["fileinfo"]["filename"]  ))
+                    if obj.get("fileinfo", {}).get("magic"):
+                        self.output_file.write("* magic: {}\n".format(obj["fileinfo"]["magic"]))
                     if obj.get("fileinfo", {}).get("size"): 
                         self.output_file.write("* size: {}\n".format(obj["fileinfo"]["size"]))
                     if obj.get("fileinfo", {}).get("sha1"):
